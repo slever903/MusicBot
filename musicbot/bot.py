@@ -22,7 +22,7 @@ from collections import defaultdict
 
 from discord.enums import ChannelType
 from discord.ext.commands.bot import _get_variable
-from discord.http import _func_
+'''from discord.http import _func_'''
 
 from . import exceptions
 from . import downloader
@@ -34,7 +34,7 @@ from .opus_loader import load_opus_lib
 from .config import Config, ConfigDefaults
 from .permissions import Permissions, PermissionsDefaults
 from .constructs import SkipState, Response, VoiceStateUpdate
-from .utils import load_file, write_file, sane_round_int, fixg, ftimedelta
+from .utils import load_file, write_file, sane_round_int, fixg, ftimedelta, _func_
 
 from .constants import VERSION as BOTVERSION
 from .constants import DISCORD_MSG_CHAR_LIMIT, AUDIO_CACHE_PATH
@@ -696,19 +696,23 @@ class MusicBot(discord.Client):
             if activeplayers > 1:
                 game = discord.Game(name="music on %s servers" % activeplayers)
                 entry = None
+                log.debug("Creating game object of name \'music on {} servers\'".format(activeplayers))
 
             elif activeplayers == 1:
                 player = discord.utils.get(self.players.values(), is_playing=True)
                 entry = player.current_entry
+                log.debug("Setting entry to \'{}\'".format(entry.title))
 
         if entry:
             prefix = u'\u275A\u275A ' if is_paused else ''
 
             name = u'{}{}'.format(prefix, entry.title)[:128]
             game = discord.Game(name=name)
+            log.debug("Creating game object with the name \'{}\'".format(name))
 
         async with self.aiolocks[_func_()]:
             if game != self.last_status:
+                log.debug("Entering self.change_presence")
                 await self.change_presence(game=game)
                 self.last_status = game
 
@@ -878,14 +882,17 @@ class MusicBot(discord.Client):
     async def safe_delete_message(self, message, *, quiet=False):
         lfunc = log.debug if quiet else log.warning
 
+        msg = await self.get_message(message.channel, message.id)
+
         try:
-            return await self.delete_message(message)
+            if not msg.pinned:
+                return await self.delete_message(msg)
 
         except discord.Forbidden:
-            lfunc("Cannot delete message \"{}\", no permission".format(message.clean_content))
+            lfunc("Cannot delete message \"{}\", no permission".format(msg.clean_content))
 
         except discord.NotFound:
-            lfunc("Cannot delete message \"{}\", message not found".format(message.clean_content))
+            lfunc("Cannot delete message \"{}\", message not found".format(msg.clean_content))
 
     async def safe_edit_message(self, message, new, *, send_if_fail=False, quiet=False):
         lfunc = log.debug if quiet else log.warning
@@ -904,6 +911,15 @@ class MusicBot(discord.Client):
             return await super().send_typing(destination)
         except discord.Forbidden:
             log.warning("Could not send typing to {}, no permission".format(destination))
+
+    async def get_message(self, channel, mid):
+        return await super().get_message(channel, mid)
+
+    async def change_presence(self, game):
+        try:
+            return await super().change_presence(game=game)
+        except discord.InvalidArgument:
+            log.warning("Failed to update presnce as {} is not a valid game or None".format(game))
 
     async def edit_profile(self, **fields):
         if self.user.bot:
@@ -1239,6 +1255,30 @@ class MusicBot(discord.Client):
         except:
             raise exceptions.CommandError('Invalid URL provided:\n{}\n'.format(server_link), expire_in=30)
 
+    async def cmd_swish(self, player, channel, author, permissions):
+        """
+        Usage: 
+            {command_prefix}swish
+
+        Adds Katy Perry - Swish Swish to the playlist
+        """
+
+        sCount = 0
+
+        await self.cmd_play(player, channel, author, permissions, [], 'https://www.youtube.com/watch?v=Z18eMqK9BMM')
+
+        if os.path.isfile('config/swish.log'):
+            with open('config/swish.log', encoding='utf-8') as f:
+                sCount = int(f.readline())
+            
+        sCount += 1
+
+        f = open('config/swish.log', 'w', encoding='utf-8')
+
+        f.write(str(sCount))
+
+        return Response("I guess we can play this song... \N{THINKING FACE}. We're only at play number {}".format(sCount), delete_after=30)
+    
     async def cmd_play(self, player, channel, author, permissions, leftover_args, song_url):
         """
         Usage:

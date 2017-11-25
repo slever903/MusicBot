@@ -72,22 +72,37 @@ class Permissions:
         Returns the first PermissionGroup a user belongs to
         :param user: A discord User or Member object
         """
-
-        for group in self.groups:
-            if user.id in group.user_list:
-                return group
-
-        # The only way I could search for roles is if I add a `server=None` param and pass that too
+        # This is gross. We need to check the type of object we're passed 
+        # Because `User` objects do not have roles, but their ID could still have permissions.
+        # If it's not a `User` object then it's a `Member` and can have roles
+        # At that point we need to check the groups for any role that the user has
+        # If nothing is found in either case we just assign the Default group
+        # The groups *should* be read top to bottom from the file
         if type(user) == discord.User:
-            return self.default_group
-
-        # We loop again so that we don't return a role based group before we find an assigned one
-        for group in self.groups:
-            for role in user.roles:
-                if role.id in group.granted_to_roles:
+            for group in self.groups:
+                if user.id in group.user_list:
+                    return group
+        else:
+            for group in self.groups:
+                for role in user.roles:
+                    if role.id in group.granted_to_roles:
+                        return group
+            for group in self.groups:
+                if user.id in group.user_list:
                     return group
 
         return self.default_group
+
+        # # The only way I could search for roles is if I add a `server=None` param and pass that too
+        # if type(user) == discord.User:
+        #     return self.default_group
+
+        # # We loop again so that we don't return a role based group before we find an assigned one
+        # for group in self.groups:
+        #     for role in user.roles:
+        #         if role.id in group.granted_to_roles:
+        #             return group
+
 
     def create_group(self, name, **kwargs):
         self.config.read_dict({name:kwargs})
