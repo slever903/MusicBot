@@ -1,12 +1,5 @@
 {
     "files.eol": "\n",
-    "python.unitTest.unittestArgs": [
-        "-v",
-        "-s",
-        "./test",
-        "-p",
-        "test_*.py"
-    ],
     "python.unitTest.unittestEnabled": true
     
 }
